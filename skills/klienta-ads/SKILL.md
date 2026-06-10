@@ -101,7 +101,11 @@ Turn that data into a recommendation, not a list: pick terms whose volume justif
 ## References
 
 - `references/performance-triage.md` — find waste; distinguish budget vs rank bottlenecks; which GAQL supports which decision.
-- `references/search-term-mining.md` — turn search-term data into a disciplined negative-keyword workflow.
+- `references/search-term-mining.md` — turn search-term data into a disciplined negative-keyword workflow, including n-gram pattern analysis.
 - `references/conversion-tracking-first.md` — the tracking gate: detect it, and the create-first flow when it is missing.
+- `references/quality-score.md` — read the three QS components and remediate the specific weak one.
+- `references/ppc-math.md` — break-even CPA, headroom, ROAS, LTV:CAC, impression-share opportunity (margin from the user).
+- `references/change-impact.md` — before/after measurement of a change with confounder checks and a verdict.
+- `references/client-report.md` — translate findings/changes into a plain-language client update with an approval list.
 
 For a read-only account scan and health report, use the companion **klienta-audit** skill.

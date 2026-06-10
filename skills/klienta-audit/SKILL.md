@@ -95,6 +95,16 @@ Finding source: budget sizing, and ad strength / ad-group coverage gaps (ad grou
 ### Scan 7 — Recent changes (optional context)
 Call `get_changes` (with the account's `customerId`) to see what changed recently — both this server's own audit log (every mutating tool call, with who/what/when and whether it succeeded) and Google's `change_event`. This is read-only and useful for explaining a sudden performance shift ("budget was raised 3 days ago", "an ad was paused"). It is context, not a scored finding; mention it in the report when a change plausibly explains what the scans show. Do not act on it — surfacing the relevant `auditId` lets the user ask **klienta-ads** to `undo_change` if a change was a mistake.
 
+### Scan 8 — Network segmentation (Google vs Search Partners)
+A Search campaign can serve on Google search itself and on the Search Partners network. They often perform very differently, and the campaign-level totals hide it. Segment by network:
+```
+SELECT campaign.name, segments.ad_network_type,
+       metrics.cost_micros, metrics.clicks, metrics.conversions, metrics.ctr
+FROM campaign
+WHERE segments.date DURING LAST_30_DAYS
+```
+Finding source: compare `SEARCH` (Google) vs `SEARCH_PARTNERS` rows for the same campaign. If Search Partners is taking meaningful spend at materially worse CTR/conversions than Google search — judged against this campaign's own Google numbers, not an external benchmark — that's a finding: the partner network may be diluting efficiency. The remediation (turning off Search Partners) is a campaign network setting; note that the current toolset's `update_campaign` covers status/name only, so flag it as a recommendation for the user to adjust in the Google Ads UI rather than implying the tool can change it.
+
 ## Health report template
 
 Present exactly this structure:
@@ -136,6 +146,10 @@ Start at 100 and subtract for what the scans reveal; show the deductions so the 
 - **−5:** large share of spend on REMOVED/PAUSED-then-rebuilt clutter or unclear structure.
 
 Map the final number: **80–100 Healthy · 50–79 Needs attention · <50 At risk.** State the deductions next to the score so the user sees how it was derived.
+
+## Presenting to the account owner
+
+The health-report template above is the internal/operator format (scores, scans, GAQL-backed findings). When the audience is the **client/account owner**, translate it into plain language using `references/client-report.md` — state of the account, what was changed-and-verified, and a clearly-separated list of actions waiting for their approval. Keep money in currency, drop the jargon, and never imply a proposed action was already executed.
 
 ## Handoff
 
