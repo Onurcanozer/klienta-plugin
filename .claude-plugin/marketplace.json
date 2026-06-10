@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Klienta — manage your own Google Ads account through AI chat. Google Ads management + read-only audit skills for Claude Code, powered by the Klienta MCP server.",
-    "version": "0.1.1"
+    "version": "0.1.2"
   },
   "plugins": [
     {
       "name": "klienta",
       "source": "./",
       "description": "Manage your own Google Ads account through AI chat via the Klienta MCP server: a safety-first operating contract for campaign/keyword/budget/ad changes and a strictly read-only account audit playbook (scored health report).",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": {
         "name": "Onurcanozer",
         "url": "https://klienta.co"
