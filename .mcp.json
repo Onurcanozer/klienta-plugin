@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "Klienta-GoogleAds": {
+      "type": "http",
+      "url": "https://klienta.co/mcp"
+    }
+  }
+}
