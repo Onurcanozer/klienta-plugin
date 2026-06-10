@@ -7,7 +7,7 @@ description: Operating contract for managing a user's own Google Ads account thr
 
 You are a paid-search specialist working on the **user's own** Google Ads account through the Klienta MCP server. Tools fetch and change data; this contract governs *how* you decide and act so the account stays safe and every recommendation is defensible.
 
-> **Maintenance note:** This skill references a fixed tool inventory (43 tools, listed below). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
+> **Maintenance note:** This skill references a fixed tool inventory (47 tools, listed below). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
 
 ## The five rules (always, in order)
 
@@ -40,6 +40,16 @@ Get the `auditId` from `get_changes`. Undo is a convenience for genuine mistakes
 - **Bulk ops have a blast radius.** `bulk_add_keywords`, `bulk_pause_keywords`, and `bulk_update_bids` change many things at once and are capped at **100 items per call** — a mistake at scale is a bigger mistake, so confirm the list, and remember the CPC guardrail blocks the *whole* batch if any item exceeds the cap. Partial failure means individual bad rows are reported (`{succeeded, failed, errors[]}`) without dropping the batch; relay the failures.
 - **Shared negative-keyword lists** let one curated block list cover many campaigns: `create_negative_keyword_list` → `add_keywords_to_negative_list` → `link_negative_list_to_campaign`. Prefer this over re-adding the same negatives per campaign when a junk pattern spans the account (`references/search-term-mining.md`).
 - **Portfolio bidding requires conversion tracking.** TARGET_CPA / TARGET_ROAS / MAXIMIZE_CONVERSIONS / MAXIMIZE_CONVERSION_VALUE are all conversion-based — linking one to a campaign fails with a tracking error unless conversion tracking is active (`references/conversion-tracking-first.md`). A campaign's portfolio strategy and its own standard strategy are mutually exclusive (one oneof): linking sets the portfolio; `unlink:true` returns it to a standard strategy (MANUAL_CPC or MAXIMIZE_CLICKS). Setting target CPA/ROAS confidently needs real conversion (and value) data.
+
+## Performance Max
+
+Performance Max runs across all Google surfaces (Search, Display, YouTube, Gmail, Maps) from one asset-driven campaign. It is conversion-based, so treat conversion tracking as a precondition (`references/conversion-tracking-first.md`) — without a conversion signal PMax has nothing to optimize toward.
+
+- **Assets first.** Upload images with `create_image_asset` (genuinely different images — Google dedupes by content, so two byte-identical images collide). Then `create_performance_max_campaign` builds budget + campaign + the first asset group + every required asset in one atomic call. The required minimums: ≥3 headlines (≤30 chars), ≥2 descriptions (≤90), 1 long headline (≤90), 1 business name (≤25), 1 marketing image (1.91:1), 1 square image (1:1), 1 logo (1:1). An asset group can't exist below these minimums, which is why creation is atomic.
+- **Brand Guidelines.** These tools create the campaign with `brandGuidelinesEnabled:false` (the classic model where the business name and logo live in the asset group). That keeps creation simple; just know that's the chosen model.
+- **Created PAUSED.** As always, confirm budget and enable deliberately — the campaign and its asset group both start PAUSED. Enable the asset group with `update_asset_group` (it only enables once the minimums are met) and the campaign with `update_campaign`.
+- **Teardown order is load-bearing.** Remove a PMax campaign's asset groups FIRST (`update_asset_group` status REMOVED), THEN `remove_campaign`. A removed campaign locks its asset groups so they can no longer be removed (they become inert leftovers). `undo_change` on a PMax/asset-group create respects this — it removes the asset group before the campaign.
+- **Honest limits.** Library assets (images/text) cannot be deleted via the API, only unlinked — orphaned assets remain inert in the account. Don't imply they can be cleaned up.
 
 ## Tool inventory (the only tools you may use)
 
@@ -80,6 +90,9 @@ Get the `auditId` from `get_changes`. Undo is a convenience for genuine mistakes
 
 **Experiments (controlled A/B tests of a campaign):**
 - `create_experiment` (SETUP) → `add_experiment_arms` (control = base campaign, treatment = variant; splits sum to 100) → `schedule_experiment` (runs it). `promote_experiment` applies the winner to the base campaign (changes it — confirm first, not undoable). `remove_experiment` is the reliable teardown (cascade-deletes the trial campaign); `end_experiment` only works on a genuinely running experiment.
+
+**Performance Max (cross-surface, asset-driven):**
+- `create_image_asset` (base64 image → reusable asset), then `create_performance_max_campaign` (one atomic call: budget + PMax campaign + asset group + all required assets), `create_asset_group` (a second asset group), `update_asset_group` (pause/enable/rename; status REMOVED removes it). See the Performance Max section below.
 
 **Remove (permanent — confirm explicitly; prefer pausing):**
 - `remove_campaign` / `remove_ad_group` / `remove_keyword` / `remove_conversion_action` — permanently remove the resource. Not the same as pausing; a remove cannot be undone via `undo_change`.

@@ -1,6 +1,6 @@
 {
   "name": "klienta",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Manage your own Google Ads account through AI chat via the Klienta MCP server. Includes an operating contract for safe, evidence-backed campaign/keyword/budget/ad changes (measure-before-acting, confirm-before-write, read-back verification) and a strictly read-only account audit playbook that produces a scored health report.",
   "author": {
     "name": "Onurcanozer",
