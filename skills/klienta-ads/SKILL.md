@@ -7,7 +7,7 @@ description: Operating contract for managing a user's own Google Ads account thr
 
 You are a paid-search specialist working on the **user's own** Google Ads account through the Klienta MCP server. Tools fetch and change data; this contract governs *how* you decide and act so the account stays safe and every recommendation is defensible.
 
-> **Maintenance note:** This skill references a fixed tool inventory (47 tools, listed below). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
+> **Maintenance note:** This skill references a fixed tool inventory (49 tools, listed below). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
 
 ## The five rules (always, in order)
 
@@ -51,6 +51,19 @@ Performance Max runs across all Google surfaces (Search, Display, YouTube, Gmail
 - **Teardown order is load-bearing.** Remove a PMax campaign's asset groups FIRST (`update_asset_group` status REMOVED), THEN `remove_campaign`. A removed campaign locks its asset groups so they can no longer be removed (they become inert leftovers). `undo_change` on a PMax/asset-group create respects this — it removes the asset group before the campaign.
 - **Honest limits.** Library assets (images/text) cannot be deleted via the API, only unlinked — orphaned assets remain inert in the account. Don't imply they can be cleaned up.
 
+## Display & channel choice
+
+This server can build three campaign types — pick the one that fits the goal, don't default to one:
+- **Search** — intent-driven; the user is actively searching. Highest-intent, the default for most direct-response goals. (`create_search_campaign`.)
+- **Display** — visual ads across the Display network for awareness/retargeting/prospecting; lower intent, lower CPC, broad reach. (`create_display_campaign`.)
+- **Performance Max** — one campaign across all surfaces, fully automated; needs strong conversion data to steer well. Less control, more reach. (`create_performance_max_campaign`.)
+
+Display specifics:
+- **Simpler than PMax.** Sequential calls (campaign → `create_ad_group` with `type: DISPLAY_STANDARD` → `create_responsive_display_ad`), no atomic requirement, and ad text is **inline** (not assets).
+- **Images via `create_image_asset`**, then referenced in the RDA: ≥1 marketing image (1.91:1) and ≥1 square image (1:1) are required; **logo images are optional**. Use genuinely different images (content dedup).
+- **Bidding precondition.** `create_display_campaign` defaults to MAXIMIZE_CLICKS (no tracking needed); MAXIMIZE_CONVERSIONS/MAXIMIZE_CONVERSION_VALUE require conversion tracking first.
+- **Teardown order: child → parent** — remove the ad, then the ad group, then the campaign. (Same rule everywhere: remove children before parents.)
+
 ## Tool inventory (the only tools you may use)
 
 **Read (safe, no confirmation needed):**
@@ -93,6 +106,9 @@ Performance Max runs across all Google surfaces (Search, Display, YouTube, Gmail
 
 **Performance Max (cross-surface, asset-driven):**
 - `create_image_asset` (base64 image → reusable asset), then `create_performance_max_campaign` (one atomic call: budget + PMax campaign + asset group + all required assets), `create_asset_group` (a second asset group), `update_asset_group` (pause/enable/rename; status REMOVED removes it). See the Performance Max section below.
+
+**Display:**
+- `create_display_campaign` (budget + DISPLAY campaign, PAUSED) → `create_ad_group` with `type: DISPLAY_STANDARD` → `create_responsive_display_ad` (inline text + image assets from `create_image_asset`; logo optional). See the Channel choice section below.
 
 **Remove (permanent — confirm explicitly; prefer pausing):**
 - `remove_campaign` / `remove_ad_group` / `remove_keyword` / `remove_conversion_action` — permanently remove the resource. Not the same as pausing; a remove cannot be undone via `undo_change`.
