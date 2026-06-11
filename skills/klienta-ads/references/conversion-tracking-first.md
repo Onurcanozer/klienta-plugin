@@ -39,7 +39,7 @@ If the user wants conversion-based optimization (smart bidding, "cut wasted spen
 1. **Explain the gate** in one sentence: without a conversion action, the account can't tell which clicks become customers, so any optimization is guesswork.
 2. **Create the conversion action** with `create_conversion_action`:
    - Defaults to `type: UPLOAD_CLICKS` — the right choice for **offline conversions** (e.g. a CRM-confirmed sale, a phone lead) imported back into Ads.
-   - Pick `category` to match the goal (`PURCHASE`, `LEAD`, `SIGNUP`, or `DEFAULT`).
+   - Pick `category` to match the goal (`PURCHASE`, `SUBMIT_LEAD_FORM`, `CONTACT`, `SIGNUP`, or `DEFAULT`; note `LEAD` is **not** a valid v21 category).
    - Choose `countingType`: `ONE_PER_CLICK` for leads (one qualified lead per click), `MANY_PER_CLICK` for purchases (a click can yield multiple sales).
    - Optionally set `defaultValue` + `defaultCurrencyCode` if conversions carry a known value.
    - This is a **write** → show the user the exact definition and confirm first.

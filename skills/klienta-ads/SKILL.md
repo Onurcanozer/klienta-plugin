@@ -125,7 +125,7 @@ Display specifics:
 **Reversal:**
 - `undo_change(auditId)` — reverse a prior change (create→remove, update→restore snapshot; removes are refused). See Undo.
 
-Do not promise capabilities outside this list (no automated bid strategies portfolio, no asset/extension tools, no audience tools, no non-Search campaign types). If a user asks for one, say it is not yet available and offer the closest supported path.
+Do not promise capabilities outside the toolset. Notably absent: audience / user-list / Customer Match tools, attribution-model and Consent Mode controls, and Shopping campaigns. If a user asks for one, say it is not yet available and offer the closest supported path. (Portfolio bidding, sitelink/callout/image assets, Performance Max, Display, and experiments **are** supported — see the references below.)
 
 ## Standard workflow
 
@@ -171,5 +171,9 @@ Turn that data into a recommendation, not a list: pick terms whose volume justif
 - `references/archetypes.md` — lead-gen and SaaS/B2B postures.
 - `references/campaign-structure.md` — structure & naming, and what restructuring the toolset can/can't automate.
 - `references/benchmark-calibration.md` — judge "good" against the account's own history and the user's margin, not invented benchmarks.
+- `references/bidding-spectrum.md` — choose a bid strategy across the manual-to-tROAS spectrum, calibrate tCPA/tROAS targets, and manage portfolio strategies.
+- `references/conversion-design.md` — design conversion actions (category, counting, value) and upload offline click conversions correctly.
+- `references/pmax-playbook.md` — build/tear down Performance Max: atomic asset-group create, asset minimums, cannibalization, black-box limits.
+- `references/shared-negatives.md` — manage account-wide negative keyword lists, universal exclusion themes, and over-block risk.
 
 For a read-only account scan and health report, use the companion **klienta-audit** skill.
