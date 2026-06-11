@@ -21,7 +21,7 @@ A repeatable, **strictly read-only** account review. This skill never calls a wr
 
 ## How to run the audit
 
-1. `list_accounts` → choose the account. If it's under a manager, pass `loginCustomerId`.
+1. `list_accounts` → choose the account by its `customerId` (results span every linked Google account, MCC-nested children included). Pass only that `customerId` to later calls — routing is automatic.
 2. Run the six scans below with `run_gaql` (read-only). Each maps to a section of the report.
 3. Fill in the **report template** and present it. Convert every `*_micros` value to account currency units (÷ 1,000,000).
 

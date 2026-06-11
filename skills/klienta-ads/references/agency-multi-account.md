@@ -1,20 +1,24 @@
 # Reference — Agency Multi-Account Operation (MCC)
 
-An agency or in-house operator running several Google Ads accounts works through a **manager account (MCC)**. This reference is how to navigate accounts under one manager, decide where attention should go, and run a repeatable monthly/quarterly review — within our toolset, and honest about where the manager surface ends.
+An agency or in-house operator runs several Google Ads accounts — across one or more **manager accounts (MCC)** and, in our surface, across one or more **linked Google accounts (connections)**. This reference is how to navigate those accounts, decide where attention should go, and run a repeatable monthly/quarterly review — within our toolset, and honest about where the surface ends.
 
 ## When this applies
 
-Use this whenever the connected Google user can see more than one account, or any account is nested under a manager. The tell is `list_accounts`: it returns each account with a `manager` flag and currency. If you see a manager account, the child accounts under it are reached by passing `loginCustomerId` (the manager's 10-digit ID, e.g. `<mcc-id>`) on every call to that child.
+Use this whenever the user can reach more than one account. Two things can multiply accounts:
+
+- **Multiple linked Google accounts.** A user can connect several Google accounts (dashboard → *Add Google account*). `list_accounts` returns the **union** of everything reachable across all of them, each row tagged with the connection/email it came through.
+- **Manager (MCC) nesting.** Accounts under a manager show up too, with a `manager` flag and currency; the manager's own children are included automatically.
 
 ## Navigating accounts
 
 ```
-1. list_accounts                      → discover IDs, currencies, manager flags
-2. list_accounts(loginCustomerId=<mcc-id>)  → accounts under that manager
-3. run_gaql(customerId=<child>, loginCustomerId=<mcc-id>)  → read a child
+1. list_accounts                       → every reachable account across all linked
+                                         Google connections + MCC children, each
+                                         tagged with its connection/email + currency
+2. run_gaql(customerId=<account-id>)   → read any of them — just the customerId
 ```
 
-Every read or write against a manager-nested account needs both `customerId` (the child, `customers/<cid>/...`) **and** `loginCustomerId` (the manager). Omitting `loginCustomerId` on a nested account is the most common multi-account error — the call fails or hits the wrong account. Guardrails, budgets, and currencies are **per child account**: there is no cross-account bulk write in our surface, so a change to ten accounts is ten confirmed operations, each read back on its own account (`references/campaign-structure.md` honest-limits discipline applies per account).
+Routing is **automatic**: pass only `customerId`. The server selects the Google connection that actually serves that account (token isolation across linked accounts) and, when the account is nested under a manager, sets the manager login internally. There is **no `loginCustomerId` parameter** — manager resolution happens server-side via `customer_client`. Guardrails, budgets, and currencies remain **per account**: there is no cross-account bulk write in our surface, so a change to ten accounts is ten confirmed operations, each read back on its own account (`references/campaign-structure.md` honest-limits discipline applies per account).
 
 **Scale limits (for context, not something we administer):** a manager account can be linked to up to 85,000 non-manager accounts, with the *active* limit tiered by trailing-12-month spend — 50 accounts under $10,000 USD/mo, 2,500 up to $500,000, and 85,000 above (per Google Ads Help, "About account limits for manager accounts," accessed June 2026). An individual account can be directly managed by at most 5 manager accounts (per Google Ads Help, accessed June 2026). Linking and access changes are off-platform — done in the Google Ads UI, not through our tools.
 
@@ -29,7 +33,7 @@ FROM customer
 WHERE segments.date DURING LAST_7_DAYS
 ```
 
-(Run per child with its `loginCustomerId`; correlate the results yourself — there's no account it returns for siblings in one call.)
+(Run per account by its `customerId`; correlate the results yourself — there's no single call that returns sibling accounts together.)
 
 Prioritize, in order:
 
@@ -62,8 +66,8 @@ Then re-run with the prior 30 days (explicit `BETWEEN` dates) and pair the chang
 
 ## Pitfalls
 
-- **Wrong `loginCustomerId`** — reads/writes silently hit the wrong account or fail; always pair child `customerId` with its manager ID.
-- **Mixed currencies** — accounts under one MCC can differ; never sum `cost_micros` across accounts without normalizing, and always divide micros by 1,000,000 in client output.
+- **Wrong account id** — routing keys entirely off `customerId`; pass the wrong one and you read/write the wrong account. Confirm the `customerId` (and, from `list_accounts`, which connection/email serves it) before any write.
+- **Mixed currencies** — accounts under one MCC, or across different linked connections, can differ; never sum `cost_micros` across accounts without normalizing, and always divide micros by 1,000,000 in client output.
 - **Treating the MCC as a bulk tool** — it isn't, in our surface. Per-account confirmation and read-back still apply to each change.
 - **One report for many accounts** — flatters or hides per-account truth; one report = one account, one period.
 
