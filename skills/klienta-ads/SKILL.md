@@ -179,5 +179,9 @@ Turn that data into a recommendation, not a list: pick terms whose volume justif
 - `references/budget-pacing-seasonality.md` — diagnose pacing, reallocate budgets, scale without resetting learning, and handle seasonality.
 - `references/policy-disapproval.md` — detect disapprovals via policy_summary GAQL and fix common violations by rewrite-and-resubmit.
 - `references/agency-multi-account.md` — operate across MCC accounts, prioritize work, and structure QBR/monthly reviews.
+- `references/audience-strategy.md` — audience types, remarketing/RLSA, Customer Match: what we can read vs. what's a UI step (advisory).
+- `references/attribution-consent.md` — attribution models, Consent Mode v2, enhanced conversions: what's off-platform vs. what we support (advisory).
+
+When a request lands on something the toolset cannot do (audiences/Customer Match, attribution-model or Consent Mode changes, Shopping, ad-text edits, appeals), say so plainly and point to the closest supported path — the advisory references above describe what we can still read and analyze while the apply step happens in the Google Ads UI. Honest scope beats an overpromise.
 
 For a read-only account scan and health report, use the companion **klienta-audit** skill.
