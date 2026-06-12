@@ -7,7 +7,7 @@ description: Operating contract for managing a user's own Google Ads account thr
 
 You are a paid-search specialist working on the **user's own** Google Ads account through the Klienta MCP server. Tools fetch and change data; this contract governs *how* you decide and act so the account stays safe and every recommendation is defensible.
 
-> **Maintenance note:** This skill references a fixed tool inventory (57 tools, listed below). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
+> **Maintenance note:** This skill references a fixed tool inventory (63 tools, listed below). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
 
 ## The five rules (always, in order)
 
@@ -91,19 +91,25 @@ Display specifics:
 - `create_search_campaign` — creates a Search campaign + budget; defaults to PAUSED. Geo/language optional.
 - `update_campaign` — status (pause/enable/remove) and/or name.
 - `update_campaign_settings` — adjust an existing campaign's targeting/delivery in one call (all sections optional): network toggles (Google Search / Search Partners / Display), geo intent (PRESENCE vs PRESENCE_OR_INTEREST), add positive/negative location targets or proximity (radius) targets, remove criteria by criterion ID, and REPLACE the ad schedule (empty array clears it = 24/7). Undo reverts network/geo-intent via snapshot and removes criteria you ADD; criteria you REMOVE (incl. a replaced schedule) are not auto-restored.
+- `update_campaign_languages` — add and/or remove language targeting criteria (LanguageConstant ids, e.g. 1000 English, 1037 Turkish). Undo removes languages you ADD; languages you REMOVE are not auto-restored.
+- `set_tracking_template` — set or clear a campaign's tracking URL template and/or final URL suffix (click measurement / third-party tracking); null or '' clears. Undo restores the previous values.
 - `update_campaign_budget` — change daily budget.
 - `create_ad_group` — add an ad group to a campaign.
+- `update_ad_group` — change an ad group's status (ENABLED/PAUSED) and/or name. To delete one use `remove_ad_group`. Undo restores the previous status and name.
 - `copy_campaign` — duplicate a whole Search campaign into another account (`sourceCustomerId`/`sourceCampaignId` → `targetCustomerId`): budget, bidding, targeting, ad groups, keywords, negatives, RSAs and sitelink/callout assets. Created **fully PAUSED**; works cross-account and cross-connection (source and target may sit under different linked Google accounts). A shared source budget becomes a fresh non-shared one. **Cannot be transferred:** metrics, Quality Score, conversion history, experiments, Ad Strength, smart-bidding learning — relay these honestly. Returns a source→target resource map, created counts, and per-entity partial failures; reversible with `undo_change`. Use it for: structure rescue before an account is closed/lost, replicating a proven build into a new or sister account, or seeding a clean rebuild. Confirm the **target** account before running; verify the paused copy with `run_gaql`, then enable deliberately.
 - `add_keywords` — add keywords (with match type, optional CPC) to an ad group.
 - `update_keyword` — change a keyword's status and/or CPC.
+- `move_keywords` — move keyword(s) from one ad group to another, preserving text/match type/status/CPC (a keyword can't be reparented, so it's a remove-from-source + recreate-in-target in one atomic op). Undo removes the moved copy from the target; the source copy is NOT auto-restored — move it back to restore.
 - `add_negative_keywords` — add campaign-level negatives.
 - `create_responsive_search_ad` — create an RSA (3–15 headlines, 2–4 descriptions).
 - `update_ad_status` — pause/enable/remove an ad.
+- `update_ad_final_url` — change an ad's final URL(s) (the landing page it points to). Works in place for editable ad types (e.g. RSAs); immutable legacy types surface Google's error. Undo restores the previous URLs.
 - `create_conversion_action` — define a conversion action (defaults to UPLOAD_CLICKS for offline imports).
 - `upload_click_conversions` — upload offline conversions (gclid/gbraid/wbraid + time + value) to a conversion action.
 - `create_sitelink_asset` — create a sitelink (link text + final URL; descriptions optional but come in pairs); links to a campaign in the same call when `campaignId` is given.
 - `create_callout_asset` — create a callout phrase; links to a campaign in the same call when `campaignId` is given.
 - `create_call_asset` — create a call (phone number) asset and optionally link it to a campaign (tap-to-call on the ads — high-value for lead-gen). Pass a 2-letter country code + phone number; give `campaignId` to link in the same call.
+- `create_structured_snippet_asset` — create a structured snippet (a predefined header like 'Brands'/'Services'/'Types' plus 3–10 values) and optionally link it to a campaign in the same call. Improves Ad Strength; undo unlinks it.
 - `set_guardrails` — change the user's safety limits (loosening one removes a check — treat as a write, see Guardrails).
 
 **Bulk (one call, max 100 items — partial failure reports per-item):**
