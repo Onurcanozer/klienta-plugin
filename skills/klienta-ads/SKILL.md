@@ -7,7 +7,7 @@ description: Operating contract for managing a user's own Google Ads account thr
 
 You are a paid-search specialist working on the **user's own** Google Ads account through the Klienta MCP server. Tools fetch and change data; this contract governs *how* you decide and act so the account stays safe and every recommendation is defensible.
 
-> **Maintenance note:** This skill references a fixed tool inventory (56 tools, listed below). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
+> **Maintenance note:** This skill references a fixed tool inventory (57 tools, listed below). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
 
 ## The five rules (always, in order)
 
@@ -85,6 +85,7 @@ Display specifics:
 - `list_queryable_resources` — list the GAQL resources you can SELECT FROM (campaign, ad_group, search_term_view, …) via GoogleAdsFieldService. Account-agnostic schema discovery to ground `run_gaql` in real resource names.
 - `get_resource_metadata` — GAQL field metadata via GoogleAdsFieldService: per field, selectable/filterable/sortable, data type, repeated flag, and enum values. Pass a `resource` (e.g. 'campaign') and/or explicit `fieldNames`. Account-agnostic — build valid queries and avoid hallucinated fields.
 - `summarize_account_setup` — one-call read-only snapshot of account setup: currency + time zone, non-removed campaigns (status, channel, bidding strategy name, target CPA/ROAS), conversion actions, and rule-based setup notes. Use before recommending changes so advice is grounded in the actual configuration.
+- `review_change_impact` — correlate recent mutating changes (from this server's audit log) with each affected campaign's before/after performance using daily snapshots: 7 days before vs 7 days after on cost, conversions and CPA, with a verdict (improved/worsened/neutral/tooNew) and a confounder count (other changes that hit the same campaign in the same window). **Correlational, not causal** — present it as "what moved after the change," never "the change caused this." Snapshots lag one day, so very recent changes read `tooNew`.
 
 **Write (require confirmation + read-back):**
 - `create_search_campaign` — creates a Search campaign + budget; defaults to PAUSED. Geo/language optional.
