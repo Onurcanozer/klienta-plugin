@@ -7,7 +7,7 @@ description: Operating contract for managing a user's own Google Ads account thr
 
 You are a paid-search specialist working on the **user's own** Google Ads account through the Klienta MCP server. Tools fetch and change data; this contract governs *how* you decide and act so the account stays safe and every recommendation is defensible.
 
-> **Maintenance note:** This skill references a fixed tool inventory (63 tools, listed below). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
+> **Maintenance note:** This skill references a fixed tool inventory (73 tools, listed below). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
 
 ## The five rules (always, in order)
 
@@ -86,6 +86,10 @@ Display specifics:
 - `get_resource_metadata` — GAQL field metadata via GoogleAdsFieldService: per field, selectable/filterable/sortable, data type, repeated flag, and enum values. Pass a `resource` (e.g. 'campaign') and/or explicit `fieldNames`. Account-agnostic — build valid queries and avoid hallucinated fields.
 - `summarize_account_setup` — one-call read-only snapshot of account setup: currency + time zone, non-removed campaigns (status, channel, bidding strategy name, target CPA/ROAS), conversion actions, and rule-based setup notes. Use before recommending changes so advice is grounded in the actual configuration.
 - `review_change_impact` — correlate recent mutating changes (from this server's audit log) with each affected campaign's before/after performance using daily snapshots: 7 days before vs 7 days after on cost, conversions and CPA, with a verdict (improved/worsened/neutral/tooNew) and a confounder count (other changes that hit the same campaign in the same window). **Correlational, not causal** — present it as "what moved after the change," never "the change caused this." Snapshots lag one day, so very recent changes read `tooNew`.
+- `get_conversion_tracking_status` — read-only conversion-tracking health: the account-level conversion_tracking_setting (status, conversion tracking id, Google-Ads vs cross-account tracker) plus every non-removed conversion action (name, status, type, category, primary-for-goal) and a roll-up by status/category. Use to ground conversion-tracking advice (mirrors the account health score's tracking signal).
+- `find_wasted_search_terms` — 30/90-day search terms with cost but zero conversions, plus a 1/2-gram roll-up of the worst recurring tokens and totals (EN/TR stopword-aware). The evidence base for negative-keyword and over-block decisions (`references/search-term-mining.md`).
+- `get_disapproved_ads` — every ad with a disapproved/limited policy approval status, with the policy topics and the campaign/ad group it sits in. Use to triage policy problems before they silently throttle delivery (`references/policy-disapproval.md`).
+- `list_audiences` — audiences in the account: ATTACHED (targeted on ad groups/campaigns, with 30-day metrics and the `criterionId` needed for `remove_audience`) and AVAILABLE (reusable user lists + unified Audiences you can attach with `add_audience`). In-market/affinity/detailed-demographic constants are global taxonomies — find their ids via `run_gaql` on `user_interest` / `detailed_demographic_view`.
 
 **Write (require confirmation + read-back):**
 - `create_search_campaign` — creates a Search campaign + budget; defaults to PAUSED. Geo/language optional.
@@ -94,6 +98,8 @@ Display specifics:
 - `update_campaign_languages` — add and/or remove language targeting criteria (LanguageConstant ids, e.g. 1000 English, 1037 Turkish). Undo removes languages you ADD; languages you REMOVE are not auto-restored.
 - `set_tracking_template` — set or clear a campaign's tracking URL template and/or final URL suffix (click measurement / third-party tracking); null or '' clears. Undo restores the previous values.
 - `update_campaign_budget` — change daily budget.
+- `update_campaign_bidding` — switch a campaign's standalone (non-portfolio) bidding strategy in place: MANUAL_CPC (optional enhanced CPC), MAXIMIZE_CLICKS, MAXIMIZE_CONVERSIONS (optional target-CPA cap), TARGET_CPA (requires targetCpa), MAXIMIZE_CONVERSION_VALUE (optional ROAS), TARGET_ROAS (requires targetRoas). Conversion-based strategies require active conversion tracking (Google rejects them otherwise). If on a portfolio strategy this detaches it. Read the current strategy first (`campaign.bidding_strategy_type`). Undo restores the previous strategy (and re-links a portfolio strategy if it had one).
+- `set_bid_modifiers` — set ONE bid multiplier (e.g. 1.2 = +20%, 0 = exclude, mobile only) on a targeting dimension. CAMPAIGN-level DEVICE (MOBILE/DESKTOP/TABLET) is created-or-updated in place. CAMPAIGN-level LOCATION / AD_SCHEDULE attach to an EXISTING criterion — pass its `criterionId` (add the criterion first with `update_campaign_settings`). AD_GROUP-level DEVICE works only on Display/Shopping/Hotel campaigns — **on Search it is rejected with a clear error; use CAMPAIGN level for Search.** Undo restores the prior multiplier (or clears it if none existed). NOTE: under smart bidding Google ignores most modifiers (mobile −100% exclusion is the exception).
 - `create_ad_group` — add an ad group to a campaign.
 - `update_ad_group` — change an ad group's status (ENABLED/PAUSED) and/or name. To delete one use `remove_ad_group`. Undo restores the previous status and name.
 - `copy_campaign` — duplicate a whole Search campaign into another account (`sourceCustomerId`/`sourceCampaignId` → `targetCustomerId`): budget, bidding, targeting, ad groups, keywords, negatives, RSAs and sitelink/callout assets. Created **fully PAUSED**; works cross-account and cross-connection (source and target may sit under different linked Google accounts). A shared source budget becomes a fresh non-shared one. **Cannot be transferred:** metrics, Quality Score, conversion history, experiments, Ad Strength, smart-bidding learning — relay these honestly. Returns a source→target resource map, created counts, and per-entity partial failures; reversible with `undo_change`. Use it for: structure rescue before an account is closed/lost, replicating a proven build into a new or sister account, or seeding a clean rebuild. Confirm the **target** account before running; verify the paused copy with `run_gaql`, then enable deliberately.
@@ -104,7 +110,9 @@ Display specifics:
 - `create_responsive_search_ad` — create an RSA (3–15 headlines, 2–4 descriptions).
 - `update_ad_status` — pause/enable/remove an ad.
 - `update_ad_final_url` — change an ad's final URL(s) (the landing page it points to). Works in place for editable ad types (e.g. RSAs); immutable legacy types surface Google's error. Undo restores the previous URLs.
+- `update_responsive_search_ad` — RSAs are immutable, so "editing" one is a swap: this **creates a new RSA** (new headlines/descriptions/final URL/paths) in the same ad group and **pauses the old one**. Undo reverses both — removes the new ad AND re-enables the old. Use for a creative refresh while keeping the old ad recoverable.
 - `create_conversion_action` — define a conversion action (defaults to UPLOAD_CLICKS for offline imports).
+- `update_conversion_action` — change an existing conversion action's settings (all optional): name, category, countingType (ONE_PER_CLICK leads / MANY_PER_CLICK purchases), value settings (defaultValue, defaultCurrencyCode, alwaysUseDefaultValue), and status. **Status note:** the API only lets you set ENABLED (re-activate) — a conversion action **cannot be paused or hidden** via the API; use `remove_conversion_action` to delete. Undo restores the previous values of the fields you changed.
 - `upload_click_conversions` — upload offline conversions (gclid/gbraid/wbraid + time + value) to a conversion action.
 - `create_sitelink_asset` — create a sitelink (link text + final URL; descriptions optional but come in pairs); links to a campaign in the same call when `campaignId` is given.
 - `create_callout_asset` — create a callout phrase; links to a campaign in the same call when `campaignId` is given.
@@ -132,11 +140,15 @@ Display specifics:
 **Display:**
 - `create_display_campaign` (budget + DISPLAY campaign, PAUSED) → `create_ad_group` with `type: DISPLAY_STANDARD` → `create_responsive_display_ad` (inline text + image assets from `create_image_asset`; logo optional). See the Channel choice section below.
 
+**Audiences (attach existing audiences — does NOT create lists or upload PII):**
+- `add_audience` — attach an EXISTING audience to an ad group or campaign as a positive criterion. `type`: USER_LIST (remarketing/customer list id from `list_audiences`), USER_INTEREST (in-market AND affinity — pass the UserInterest constant id), DETAILED_DEMOGRAPHIC, or AUDIENCE (unified Audience id). `mode`: OBSERVATION (default, safe — observe + bid-adjust, no serving restriction) vs TARGETING (RESTRICTS who sees the ads — a big delivery change). Customer Match / off-platform PII is out of scope. Undo removes the audience criterion.
+- `remove_audience` — detach an audience criterion (get `criterionId` from `list_audiences`). **Unlike other removals this IS undoable** — undo re-creates the same audience criterion (stats are not restored).
+
 **Remove (permanent — confirm explicitly; prefer pausing):**
-- `remove_campaign` / `remove_ad_group` / `remove_keyword` / `remove_conversion_action` — permanently remove the resource. Not the same as pausing; a remove cannot be undone via `undo_change`.
+- `remove_campaign` / `remove_ad_group` / `remove_keyword` / `remove_conversion_action` — permanently remove the resource. Not the same as pausing; a remove cannot be undone via `undo_change` (the lone exception is `remove_audience`, above).
 
 **Reversal:**
-- `undo_change(auditId)` — reverse a prior change (create→remove, update→restore snapshot; removes are refused). See Undo.
+- `undo_change(auditId)` — reverse a prior change (create→remove, update→restore snapshot, RSA swap→remove-new+re-enable-old, `remove_audience`→re-create; other removes are refused). See Undo.
 
 Do not promise capabilities outside the toolset. Notably absent: audience / user-list / Customer Match tools, attribution-model and Consent Mode controls, and Shopping campaigns. If a user asks for one, say it is not yet available and offer the closest supported path. (Portfolio bidding, sitelink/callout/image assets, Performance Max, Display, and experiments **are** supported — see the references below.)
 
