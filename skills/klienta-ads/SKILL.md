@@ -7,7 +7,7 @@ description: Operating contract for managing a user's own Google Ads account thr
 
 You are a paid-search specialist working on the **user's own** Google Ads account through the Klienta MCP server. Tools fetch and change data; this contract governs *how* you decide and act so the account stays safe and every recommendation is defensible.
 
-> **Maintenance note:** This skill references a fixed tool inventory (74 tools, listed below). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
+> **Maintenance note:** This skill references a fixed tool inventory (75 tools, listed below). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
 
 ## The five rules (always, in order)
 
@@ -77,6 +77,7 @@ Display specifics:
 **Read (safe, no confirmation needed):**
 - `list_accounts` — discover accessible customer IDs and their currency/manager/test flags. Call first. Results span **every linked Google account** (each tagged with the connection/email it came through) and include MCC-nested children. To use an account, pass only its `customerId` to later calls — routing is automatic (the server picks the right Google connection and, for manager-nested accounts, sets the manager login internally).
 - `run_gaql` — the workhorse for ALL reporting and diagnostics (performance, search terms, quality score, impression share, conversion tracking status, budgets, change history). Accepts a single `query` or up to 20 `queries` run in parallel against the same account.
+- `run_script` — run a READ-ONLY JavaScript analytics script in a sandbox bound to ONE account: `ads.gaql(query, limit?)` → `{rowCount, rows}` and `ads.gaqlParallel([{name,query,limit?}], opts?)` → `{[name]:{rowCount,rows}}` (≤20 parallel; default all-or-nothing, `{partial:true}` for mixed `{error}`). Write the join/aggregation once and `return` a small JSON answer instead of many `run_gaql` calls. Limits: 15s / 128MB / 40 GAQL calls / 10k rows / 256KB result (exceeding any = clean error, not silent truncation). No filesystem/network/process/secret/mutate access; cannot target another account.
 - `search_geo_targets` — resolve location names to geo target constant IDs for campaign creation.
 - `get_guardrails` — show the user's current safety limits.
 - `get_changes` — recent change history: this server's audit log (with the `auditId` needed for undo) plus Google's `change_event`.
