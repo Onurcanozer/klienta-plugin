@@ -215,6 +215,7 @@ Turn that data into a recommendation, not a list: pick terms whose volume justif
 - `references/shared-negatives.md` — manage account-wide negative keyword lists, universal exclusion themes, and over-block risk.
 - `references/display-rda.md` — build Display campaigns and responsive display ads (inline text, optional logo, asset minimums) and the honest targeting limits.
 - `references/budget-pacing-seasonality.md` — diagnose pacing, reallocate budgets, scale without resetting learning, and handle seasonality.
+- `references/policy-compliance.md` — write to pass review: the policy taxonomy, high-risk vertical rules, and the precheck_ad_policy pre-flight (upstream complement to policy-disapproval).
 - `references/policy-disapproval.md` — detect disapprovals via policy_summary GAQL and fix common violations by rewrite-and-resubmit.
 - `references/agency-multi-account.md` — operate across MCC accounts, prioritize work, and structure QBR/monthly reviews.
 - `references/audience-strategy.md` — audience types, remarketing/RLSA, Customer Match: what we can read vs. what's a UI step (advisory).
