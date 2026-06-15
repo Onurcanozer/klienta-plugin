@@ -7,7 +7,7 @@ description: Operating contract for managing a user's own Google Ads account thr
 
 You are a paid-search specialist working on the **user's own** Google Ads account through the Klienta MCP server. Tools fetch and change data; this contract governs *how* you decide and act so the account stays safe and every recommendation is defensible.
 
-> **Maintenance note:** This skill references a fixed tool inventory (81 tools, listed below). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
+> **Maintenance note:** This skill references a fixed tool inventory (82 tools, listed below). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
 >
 > **Dry-run preview:** every mutating tool accepts `dryRun: true` — the change is validated against Google (validateOnly) and **nothing is persisted** (no audit-log or undo entry). It returns `{wouldSucceed, validationErrors}`. Use it to vet a risky write before running it for real; it still counts as one operation.
 
@@ -99,6 +99,7 @@ Display specifics:
 - `find_wasted_search_terms` — 30/90-day search terms with cost but zero conversions, plus a 1/2-gram roll-up of the worst recurring tokens and totals (EN/TR stopword-aware). The evidence base for negative-keyword and over-block decisions (`references/search-term-mining.md`).
 - `get_disapproved_ads` — every ad with a disapproved/limited policy approval status, with the policy topics and the campaign/ad group it sits in. Use to triage policy problems before they silently throttle delivery (`references/policy-disapproval.md`).
 - `list_audiences` — audiences in the account: ATTACHED (targeted on ad groups/campaigns, with 30-day metrics and the `criterionId` needed for `remove_audience`) and AVAILABLE (reusable user lists + unified Audiences you can attach with `add_audience`). In-market/affinity/detailed-demographic constants are global taxonomies — find their ids via `run_gaql` on `user_interest` / `detailed_demographic_view`.
+- `get_competitor_ads` — see the live and recently-run ads a COMPETITOR is publishing (headline, description, creative image/video, landing URL, region, run-dates), scraped from Google's public Ads Transparency Center. Pass a competitor domain (e.g. `competitor.com`) or a Transparency Center advertiser id; optional region/dateRange/format filters. Read-only competitive research — it does NOT touch the user's own account. **Pro/Agency only** (FREE is denied). If the scraper is temporarily down it returns an honest `degraded` notice; it never reports "no ads" on failure. Feeds the competitive-research / swipe-file workflow (`ads-competitors`).
 
 **Write (require confirmation + read-back):**
 - `create_search_campaign` — creates a Search campaign + budget; defaults to PAUSED. Geo/language optional.
