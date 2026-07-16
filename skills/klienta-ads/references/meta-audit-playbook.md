@@ -1,6 +1,6 @@
 # Reference — Meta Ads Audit Playbook (Read-Only, Faz 1)
 
-How to audit a Meta (Facebook/Instagram) ad account with Klienta's 7 read-only `meta_*` tools. **There are no Meta write tools yet** — every finding ends in either "monitor" or "do this in Ads Manager." Never imply Klienta can apply a Meta fix; write tools arrive in a later release.
+How to audit a Meta (Facebook/Instagram) ad account with Klienta's 7 read-only `meta_*` tools. Five write tools now exist (`meta_update_status`, `meta_update_budget`, `meta_update_bid`, `meta_rename`, `meta_update_schedule` — see the SKILL.md Meta Ads WRITE section, incl. the minor-units and no-dry-run rules), so findings in those five areas can end in a confirmed Klienta write; everything else (creatives, targeting, structure, appeals) still ends in "monitor" or "do this in Ads Manager." Never imply Klienta can apply a Meta fix outside those five levers.
 
 All calls below were validated against the shipped Faz-1 tool surface: `meta_list_ad_accounts`, `meta_list_campaigns`, `meta_list_adsets`, `meta_list_ads`, `meta_get_insights`, `meta_get_ad_creatives`, `meta_diagnose_delivery`. `act_<test-account-id>` is a placeholder — always use the id returned by `meta_list_ad_accounts`.
 
@@ -132,7 +132,7 @@ Run through these on every audit; each maps to specific tool evidence.
 
 These are hard constraints on every Meta audit output:
 
-1. **Read-only means read-only.** Every recommended fix routes to Ads Manager ("Enable the campaign in Ads Manager", "Edit the ad and resubmit for review"). Never say Klienta paused/changed anything on Meta — it can't yet. When write tools ship, this file gets updated; until then the phrasing is "do X in Ads Manager (Klienta write tools for Meta arrive in a later release)."
+1. **The audit itself stays read-only.** The audit pass never mutates anything. When a finding lands on one of the five write levers (status, budget, bid, name, schedule), the fix MAY be offered as a Klienta write — with explicit confirmation, the minor-units quote, and a read-back, per the SKILL.md Meta Ads WRITE section (note its LIVE-REHEARSAL-PENDING caution). Every other fix routes to Ads Manager ("Edit the ad and resubmit for review"); never say Klienta changed something it didn't, and never imply a write lever exists beyond those five.
 2. **No invented benchmarks.** Never quote industry CPM/CTR/CPA/ROAS figures ("good CTR is ~1%") — you don't have that data and the tools don't provide it. The only valid comparison baseline is **the account's own history**: this ad vs its own first weeks, this month vs last month, this ad set vs the sibling ad set — all via `meta_get_insights` with explicit ranges.
 3. **Say "insufficient data" when it's insufficient.** An ad set with 300 impressions has no judgeable CTR; a campaign 3 days into learning has no judgeable CPA. State the threshold problem instead of forcing a verdict.
 4. **Degraded ≠ empty.** `connectionErrors` in `meta_list_ad_accounts` or `queryErrors` in `meta_diagnose_delivery` mean part of the picture is missing — report the gap explicitly. An error is never "the account has no campaigns."

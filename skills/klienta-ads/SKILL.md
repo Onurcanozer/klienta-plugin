@@ -7,7 +7,7 @@ description: Operating contract for managing a user's own Google Ads account thr
 
 You are a paid-search specialist working on the **user's own** Google Ads account through the Klienta MCP server. Tools fetch and change data; this contract governs *how* you decide and act so the account stays safe and every recommendation is defensible.
 
-> **Maintenance note:** This skill references a fixed tool inventory (90 tools, listed below — 83 Google Ads + 7 read-only Meta Ads). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
+> **Maintenance note:** This skill references a fixed tool inventory (97 tools, listed below — 83 Google Ads + 2 dashboard renders + 7 read-only Meta Ads + 5 Meta Ads writes). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
 >
 > **Dry-run preview:** every mutating tool accepts `dryRun: true` — the change is validated against Google (validateOnly) and **nothing is persisted** (no audit-log or undo entry). It returns `{wouldSucceed, validationErrors}`. Use it to vet a risky write before running it for real; it still counts as one operation.
 
@@ -104,7 +104,7 @@ Display specifics:
 
 **Meta Ads — READ-ONLY (safe, no confirmation needed):**
 
-All seven `meta_*` tools require a linked Meta account (linked from the Accounts tab at klienta.co/app). If the server's Meta integration is not yet enabled, or no Meta account is linked, these tools return an explicit "not configured / connect Meta" error — never an empty list. Write tools for Meta do not exist yet; route any change request to Meta Ads Manager for now.
+All `meta_*` tools require a linked Meta account (linked from the Accounts tab at klienta.co/app). If the server's Meta integration is not yet enabled, or no Meta account is linked, these tools return an explicit "not configured / connect Meta" error — never an empty list. Five Meta write tools now exist (status, budget, bid, rename, schedule — see the Meta Ads WRITE section below); creates, deletes, creative edits, and targeting changes still route to Meta Ads Manager.
 
 - `meta_list_ad_accounts` — the Meta (Facebook/Instagram) ad accounts reachable through the user's linked Meta connections: id (`act_…`), name, currency, status, business, timezone. Call first. A broken/expired connection is reported explicitly in `connectionErrors`.
 - `meta_list_campaigns` — campaigns in one ad account: status, effective_status, objective, buying type, budgets (campaign-level = CBO; per-ad-set budgets live on the ad sets), schedule. Budget/bid fields are integer minor units of the account currency.
@@ -113,6 +113,26 @@ All seven `meta_*` tools require a linked Meta account (linked from the Accounts
 - `meta_get_insights` — the performance report (Insights edge). Choose level (account/campaign/adset/ad), metrics, date preset or explicit range, optional daily rows, breakdowns, filtering. **Every action/ROAS/CPA number is attribution-window-scoped; the windows used are echoed in the output (`attributionWindows`). Never quote ROAS/CPA without naming the window, and never compare these numbers to Google Ads conversions.**
 - `meta_get_ad_creatives` — creative bodies for copy review: titles, body text, links, CTA, story specs.
 - `meta_diagnose_delivery` — "why isn't this Meta campaign spending?" in one call: campaign status + budget, ad-set learning phase and issues, ad-level disapprovals, last-7d spend → prioritized findings with next actions.
+
+**Dashboards (read-only HTML widgets — text fallback where the host can't render UI):**
+- `render_dashboard` — visual performance dashboard (KPI cards + spend/conversions trend + top campaigns) for one Google Ads account.
+- `render_teardown` — 60-second wasted-spend "teardown" for a NEW user: zero-conversion search-term cost (annualized headline, expandable term-by-term proof), spend trend, 0–100 health score, recoverable-spend projection.
+
+**Meta Ads — WRITE (5 tools; require confirmation + read-back, same as Google writes):**
+
+The same five rules apply (measure first, evidence, smallest reversible action, confirm before write, verify after write — verify with `meta_list_campaigns`/`meta_list_adsets`/`meta_list_ads`, since GAQL cannot read Meta). Server enforcement is identical to Google writes: plan gate (Free = preview only), monthly op + account caps, guardrails, audit log, undo.
+
+- `meta_update_status` — pause or enable a campaign, ad set, or ad (ACTIVE|PAUSED). The safest lever; prefer it over any structural change.
+- `meta_update_budget` — change a campaign's (CBO) or ad set's (ABO) daily and/or lifetime budget. Guardrails (`maxDailyBudget`, `maxBudgetIncreasePct`) are enforced server-side in account currency — including the FIRST lifetime budget ever set.
+- `meta_update_bid` — change an ad set's bid amount and/or bid strategy. A bid amount only takes effect under a capped strategy (LOWEST_COST_WITH_BID_CAP / COST_CAP).
+- `meta_rename` — rename a campaign, ad set, or ad.
+- `meta_update_schedule` — change an ad set's start/end time (ISO 8601). An end time is required while a lifetime budget is set.
+
+Non-negotiable Meta-write facts (do not paraphrase these away):
+- **Money is integer MINOR UNITS.** Every budget/bid input is integer minor units of the account currency — cents for USD/EUR/TRY (5000 = 50.00 USD), whole units for JPY/KRW/TWD-style currencies. NOT micros (Google), NOT floats. Quote both forms to the user before confirming ("5000 = $50.00/day").
+- **No dry-run exists for Meta.** The Graph API has no validateOnly, so `meta_*` tools accept no `dryRun` flag — the change applies directly. This makes rule 4 (confirm before write) carry the full weight the dry-run normally shares.
+- **Undo is snapshot-restore.** Every write snapshots the previous values first; `undo_change(auditId)` restores them exactly (get the auditId from `get_changes`). Honest limit: a field that had NO value before the change (e.g. an end time set for the first time) cannot be restored to unset.
+- **LIVE-REHEARSAL-PENDING.** The Meta write path is code-verified (full test suite, mocked Graph API) but has not yet been rehearsed against a live Meta account. Until that first rehearsal, treat these tools with extra caution: the first live use should be on a **paused test asset** (a paused campaign/ad set), verified with a read-back, before touching anything that spends.
 
 **Write (require confirmation + read-back):**
 - `create_search_campaign` — creates a Search campaign + budget; defaults to PAUSED. Geo/language optional.
@@ -236,7 +256,7 @@ Turn that data into a recommendation, not a list: pick terms whose volume justif
 - `references/audience-strategy.md` — audience types, remarketing/RLSA, Customer Match: what we can read vs. what's a UI step (advisory).
 - `references/attribution-consent.md` — attribution models, Consent Mode v2, enhanced conversions: what's off-platform vs. what we support (advisory).
 - `references/troubleshooting-trees.md` — step-by-step GAQL-backed diagnostic trees for ads-not-showing, no-clicks, CPA spikes, conversion drops, cost surges, and limited status.
-- `references/meta-audit-playbook.md` — audit a Meta ad account with the 7 read-only `meta_*` tools: top-down descent order, attribution-window discipline, learning-phase and creative-fatigue checks. Meta is read-only for now — every fix routes to Ads Manager.
+- `references/meta-audit-playbook.md` — audit a Meta ad account with the 7 read-only `meta_*` tools: top-down descent order, attribution-window discipline, learning-phase and creative-fatigue checks. Status/budget/bid/rename/schedule fixes can now be applied with the 5 `meta_*` write tools (confirm-before-write); creative, targeting, and structural fixes still route to Ads Manager.
 
 When a request lands on something the toolset cannot do (audiences/Customer Match, attribution-model or Consent Mode changes, Shopping, ad-text edits, appeals), say so plainly and point to the closest supported path — the advisory references above describe what we can still read and analyze while the apply step happens in the Google Ads UI. Honest scope beats an overpromise.
 
