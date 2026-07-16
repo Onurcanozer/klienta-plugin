@@ -7,7 +7,7 @@ description: Read-only Google Ads account audit playbook for the Klienta MCP ser
 
 A repeatable, **strictly read-only** account review. This skill never calls a write tool — its output is a health report a human (or the `klienta-ads` skill) can act on. If the user approves changes, hand off to **klienta-ads**, which owns the confirmation-and-write discipline.
 
-> **Maintenance note:** This skill assumes the current 63-tool inventory and v21 GAQL field names. When the tool inventory or API version changes, update this playbook accordingly. (The mutating tools — keyword research, assets, bulk ops, shared negative-keyword lists, portfolio bidding, experiments, Performance Max, Display — belong to the **klienta-ads** workflow, not this read-only audit. `get_usage` reports the user's plan/usage and is read-only.)
+> **Maintenance note:** This skill assumes the current 90-tool inventory and v21 GAQL field names. When the tool inventory or API version changes, update this playbook accordingly. (The mutating tools — keyword research, assets, bulk ops, shared negative-keyword lists, portfolio bidding, experiments, Performance Max, Display — belong to the **klienta-ads** workflow, not this read-only audit. `get_usage` reports the user's plan/usage and is read-only. The read-only `meta_*` Meta Ads tools are NOT part of this playbook — this audit is Google Ads only; a Meta audit playbook is a planned follow-up.)
 
 ## Tools used (read-only only)
 

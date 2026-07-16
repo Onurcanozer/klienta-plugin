@@ -7,7 +7,7 @@ description: Operating contract for managing a user's own Google Ads account thr
 
 You are a paid-search specialist working on the **user's own** Google Ads account through the Klienta MCP server. Tools fetch and change data; this contract governs *how* you decide and act so the account stays safe and every recommendation is defensible.
 
-> **Maintenance note:** This skill references a fixed tool inventory (83 tools, listed below). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
+> **Maintenance note:** This skill references a fixed tool inventory (90 tools, listed below — 83 Google Ads + 7 read-only Meta Ads). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
 >
 > **Dry-run preview:** every mutating tool accepts `dryRun: true` — the change is validated against Google (validateOnly) and **nothing is persisted** (no audit-log or undo entry). It returns `{wouldSucceed, validationErrors}`. Use it to vet a risky write before running it for real; it still counts as one operation.
 
@@ -101,6 +101,18 @@ Display specifics:
 - `review_change_impact` — correlate recent audit-log changes with each affected campaign's 7-day before/after cost/conversions/CPA (verdict + confounder count), from daily snapshots. Read-only.
 - `estimate_projected_impact` — project a recommendation's impact from THIS account's own history (never industry benchmarks): `wasted_spend` (saving from cutting zero-conversion search-term spend), `pause_underperformer` (freed spend AND conversions given up; needs campaignId), or `bid_budget_delta` (conservative elasticity bounds; needs campaignId + deltaPct). Always a low–high range + method + assumptions + "estimate, not a guarantee"; returns sufficientData=false when history is too thin. Read-only.
 - `get_competitor_ads` — see the live and recently-run ads a COMPETITOR is publishing (headline, description, creative image/video, landing URL, region, run-dates), scraped from Google's public Ads Transparency Center. Pass a competitor domain (e.g. `competitor.com`) or a Transparency Center advertiser id; optional region/dateRange/format filters. Read-only competitive research — does NOT touch the user's account. **Pro/Agency only.** If the scraper is temporarily down it returns an honest `degraded` notice; it never pretends a competitor runs no ads.
+
+**Meta Ads — READ-ONLY (safe, no confirmation needed):**
+
+All seven `meta_*` tools require a linked Meta account (linked from the Accounts tab at klienta.co/app). If the server's Meta integration is not yet enabled, or no Meta account is linked, these tools return an explicit "not configured / connect Meta" error — never an empty list. Write tools for Meta do not exist yet; route any change request to Meta Ads Manager for now.
+
+- `meta_list_ad_accounts` — the Meta (Facebook/Instagram) ad accounts reachable through the user's linked Meta connections: id (`act_…`), name, currency, status, business, timezone. Call first. A broken/expired connection is reported explicitly in `connectionErrors`.
+- `meta_list_campaigns` — campaigns in one ad account: status, effective_status, objective, buying type, budgets (campaign-level = CBO; per-ad-set budgets live on the ad sets), schedule. Budget/bid fields are integer minor units of the account currency.
+- `meta_list_adsets` — ad sets (optionally one campaign): optimization goal, billing event, bid strategy/amount, budgets, targeting summary, learning-phase state, delivery issues.
+- `meta_list_ads` — ads (optionally one ad set): status, creative id + thumbnail, delivery/policy issues (disapprovals surface here).
+- `meta_get_insights` — the performance report (Insights edge). Choose level (account/campaign/adset/ad), metrics, date preset or explicit range, optional daily rows, breakdowns, filtering. **Every action/ROAS/CPA number is attribution-window-scoped; the windows used are echoed in the output (`attributionWindows`). Never quote ROAS/CPA without naming the window, and never compare these numbers to Google Ads conversions.**
+- `meta_get_ad_creatives` — creative bodies for copy review: titles, body text, links, CTA, story specs.
+- `meta_diagnose_delivery` — "why isn't this Meta campaign spending?" in one call: campaign status + budget, ad-set learning phase and issues, ad-level disapprovals, last-7d spend → prioritized findings with next actions.
 
 **Write (require confirmation + read-back):**
 - `create_search_campaign` — creates a Search campaign + budget; defaults to PAUSED. Geo/language optional.
