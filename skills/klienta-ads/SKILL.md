@@ -7,7 +7,7 @@ description: Operating contract for managing a user's own Google Ads account thr
 
 You are a paid-search specialist working on the **user's own** Google Ads account through the Klienta MCP server. Tools fetch and change data; this contract governs *how* you decide and act so the account stays safe and every recommendation is defensible.
 
-> **Maintenance note:** This skill references a fixed tool inventory (97 tools, listed below — 83 Google Ads + 2 dashboard renders + 7 read-only Meta Ads + 5 Meta Ads writes). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
+> **Maintenance note:** This skill references a fixed tool inventory (103 tools, listed below — 83 Google Ads + 2 dashboard renders + 7 read-only Meta Ads + 5 Meta Ads writes + 6 Meta Ads create/targeting tools). When the tool inventory changes, this skill must be updated — do not reference tools that do not exist, and add guidance for new ones.
 >
 > **Dry-run preview:** every mutating tool accepts `dryRun: true` — the change is validated against Google (validateOnly) and **nothing is persisted** (no audit-log or undo entry). It returns `{wouldSucceed, validationErrors}`. Use it to vet a risky write before running it for real; it still counts as one operation.
 
@@ -104,7 +104,7 @@ Display specifics:
 
 **Meta Ads — READ-ONLY (safe, no confirmation needed):**
 
-All `meta_*` tools require a linked Meta account (linked from the Accounts tab at klienta.co/app). If the server's Meta integration is not yet enabled, or no Meta account is linked, these tools return an explicit "not configured / connect Meta" error — never an empty list. Five Meta write tools now exist (status, budget, bid, rename, schedule — see the Meta Ads WRITE section below); creates, deletes, creative edits, and targeting changes still route to Meta Ads Manager.
+All `meta_*` tools require a linked Meta account (linked from the Accounts tab at klienta.co/app). If the server's Meta integration is not yet enabled, or no Meta account is linked, these tools return an explicit "not configured / connect Meta" error — never an empty list. Five Meta write tools exist (status, budget, bid, rename, schedule — see the Meta Ads WRITE section below), and the full create chain plus targeting updates now exist too (see the Meta Ads CREATE section); deletes and edits to existing creatives still route to Meta Ads Manager.
 
 - `meta_list_ad_accounts` — the Meta (Facebook/Instagram) ad accounts reachable through the user's linked Meta connections: id (`act_…`), name, currency, status, business, timezone. Call first. A broken/expired connection is reported explicitly in `connectionErrors`.
 - `meta_list_campaigns` — campaigns in one ad account: status, effective_status, objective, buying type, budgets (campaign-level = CBO; per-ad-set budgets live on the ad sets), schedule. Budget/bid fields are integer minor units of the account currency.
@@ -133,6 +133,24 @@ Non-negotiable Meta-write facts (do not paraphrase these away):
 - **No dry-run exists for Meta.** The Graph API has no validateOnly, so `meta_*` tools accept no `dryRun` flag — the change applies directly. This makes rule 4 (confirm before write) carry the full weight the dry-run normally shares.
 - **Undo is snapshot-restore.** Every write snapshots the previous values first; `undo_change(auditId)` restores them exactly (get the auditId from `get_changes`). Honest limit: a field that had NO value before the change (e.g. an end time set for the first time) cannot be restored to unset.
 - **LIVE-REHEARSAL-PENDING.** The Meta write path is code-verified (full test suite, mocked Graph API) but has not yet been rehearsed against a live Meta account. Until that first rehearsal, treat these tools with extra caution: the first live use should be on a **paused test asset** (a paused campaign/ad set), verified with a read-back, before touching anything that spends.
+
+**Meta Ads — CREATE (Faz 3: the create chain + targeting; require confirmation + read-back):**
+
+The create chain is SEQUENTIAL, one tool per object: `meta_create_campaign` → `meta_create_adset` → (`meta_upload_image` +) `meta_create_ad`. A failed later step leaves the earlier PAUSED objects in place and the error names them — there is no silent orphan cleanup; retry the failed step, don't recreate the whole chain.
+
+- `meta_list_pages` — the Facebook Pages the user's linked Meta connections can act as (a Meta ad runs AS a Page — `meta_create_ad` needs a `pageId` from here). Read-only. A connection linked before Klienta requested the `pages_show_list` permission reports an explicit permission error (fix: re-link Meta at klienta.co/app) — never disguised as "no Pages".
+- `meta_upload_image` — upload an image (base64 bytes preferred, or a public https URL downloaded server-side; 8 MB max, jpeg/png/gif/webp verified by content) to the ad account's image library → returns the `imageHash` for `meta_create_ad`. **NOT undoable:** library images are permanent; an unused one is harmless.
+- `meta_create_campaign` — create a campaign. Requires an ODAX `OUTCOME_*` objective; `specialAdCategories` is always sent (empty array = none — Meta requires the declaration even when empty). Optional campaign-level budget = CBO; omit it to budget per ad set (ABO). Budget guardrails apply, including the first-ever budget.
+- `meta_create_adset` — create an ad set. `billing_event` is IMPRESSIONS (v1 surface); budget is daily OR lifetime (lifetime requires `endTime`) unless the campaign carries CBO. `countries` is required (minimal legal targeting) and `advantageAudience` is REQUIRED with no default (true = Meta may expand beyond your targeting; false = exact audience) — Meta demands the explicit choice. `OFFSITE_CONVERSIONS` needs `promotedObject` (an installed Pixel).
+- `meta_create_ad` — create an image link ad; the creative is INLINE (one call creates creative + ad): `pageId`, primary text (`message`), `link`, optional headline/description/CTA, and an `imageHash` from `meta_upload_image`. If the creative is created but the ad step fails, the error names the orphan creative id — creatives are harmless library objects; a retry creates a fresh one.
+- `meta_update_targeting` — read-modify-write on an existing ad set's targeting: only the params you pass change; everything else (including fields outside the v1 surface, e.g. custom audiences set in Ads Manager) is preserved verbatim.
+
+Non-negotiable Meta-create facts (do not paraphrase these away):
+- **PAUSED-on-create is UNCONDITIONAL.** The create tools have NO status parameter — every created campaign/ad set/ad is born PAUSED, no exceptions. Meta has no dry-run, so paused-on-create is the only pre-flight safety. **Enabling is a separate, explicit second step** (`meta_update_status` to ACTIVE), confirmed with the user after a read-back of the created structure. Never present create + enable as one action.
+- **Targeting is the v1 field set only:** geo (countries/regions/cities + excluded countries), age (13–65), gender, placements (four placement lists, or `automaticPlacements=true` for Advantage+ placements), and the `advantageAudience` flag. NO custom audiences, NO interests/behaviors yet — those still route to Ads Manager. There is no raw-JSON targeting passthrough.
+- **Undo of a create is a DELETE.** `undo_change` on a create deletes the created object — child before parent; undoing a campaign create deletes the campaign AND (by Meta's cascade) everything under it. `meta_update_targeting` undo restores the full snapshotted targeting object. `meta_upload_image` has no undo.
+- **Minor units + no dry-run** apply exactly as in the WRITE section above.
+- **LIVE-REHEARSAL-PENDING** applies to the create chain too: code-verified against a mocked Graph API, not yet rehearsed on a live Meta account. First live use: create the chain, read it back, and leave it PAUSED for user review before any enable.
 
 **Write (require confirmation + read-back):**
 - `create_search_campaign` — creates a Search campaign + budget; defaults to PAUSED. Geo/language optional.
@@ -256,7 +274,7 @@ Turn that data into a recommendation, not a list: pick terms whose volume justif
 - `references/audience-strategy.md` — audience types, remarketing/RLSA, Customer Match: what we can read vs. what's a UI step (advisory).
 - `references/attribution-consent.md` — attribution models, Consent Mode v2, enhanced conversions: what's off-platform vs. what we support (advisory).
 - `references/troubleshooting-trees.md` — step-by-step GAQL-backed diagnostic trees for ads-not-showing, no-clicks, CPA spikes, conversion drops, cost surges, and limited status.
-- `references/meta-audit-playbook.md` — audit a Meta ad account with the 7 read-only `meta_*` tools: top-down descent order, attribution-window discipline, learning-phase and creative-fatigue checks. Status/budget/bid/rename/schedule fixes can now be applied with the 5 `meta_*` write tools (confirm-before-write); creative, targeting, and structural fixes still route to Ads Manager.
+- `references/meta-audit-playbook.md` — audit a Meta ad account with the 7 read-only `meta_*` tools: top-down descent order, attribution-window discipline, learning-phase and creative-fatigue checks. Status/budget/bid/rename/schedule fixes can be applied with the 5 `meta_*` write tools, and targeting fixes plus new-structure builds with the Faz 3 create/targeting tools (confirm-before-write); deletes and edits to existing creatives still route to Ads Manager.
 
 When a request lands on something the toolset cannot do (audiences/Customer Match, attribution-model or Consent Mode changes, Shopping, ad-text edits, appeals), say so plainly and point to the closest supported path — the advisory references above describe what we can still read and analyze while the apply step happens in the Google Ads UI. Honest scope beats an overpromise.
 
